@@ -223,6 +223,12 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
 .tab-btn.active{color:var(--green)}
 .tab-btn svg{width:24px;height:24px}
 .tab-btn span{font-size:10px;font-weight:500}
+
+/* ── pull-to-refresh ── */
+#ptrBar{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--secondary);opacity:0;transition:height .15s,opacity .15s;gap:6px}
+#ptrBar.ready{color:var(--green)}
+#ptrBar svg{flex-shrink:0;transition:transform .2s}
+#ptrBar.ready svg{transform:rotate(180deg)}
 </style>
 </head>
 <body>
@@ -230,6 +236,10 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
 <!-- ===== TAB: 오늘 ===== -->
 <div class="tab-panel active" id="panel-today">
 <div class="wrap">
+  <div id="ptrBar">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    <span id="ptrText">당겨서 새로고침</span>
+  </div>
   <header>
     <div class="date" id="date"></div>
     <h1>오늘의 영양제</h1>
@@ -1113,6 +1123,48 @@ dbxHandleCallback();
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
+
+// ===== PULL TO REFRESH =====
+(function(){
+  const panel=document.getElementById('panel-today');
+  const bar=document.getElementById('ptrBar');
+  const txt=document.getElementById('ptrText');
+  let startY=0, pulling=false, peak=0;
+  const THRESHOLD=70;
+
+  document.addEventListener('touchstart',e=>{
+    if(!panel.classList.contains('active')) return;
+    if(window.scrollY>1) return;
+    startY=e.touches[0].clientY;
+    pulling=true; peak=0;
+  },{passive:true});
+
+  document.addEventListener('touchmove',e=>{
+    if(!pulling) return;
+    const dy=e.touches[0].clientY-startY;
+    if(dy<=0){pulling=false;return;}
+    peak=dy;
+    const h=Math.min(dy*0.45,48);
+    bar.style.height=h+'px';
+    bar.style.opacity=Math.min(dy/THRESHOLD,1);
+    if(dy>=THRESHOLD){txt.textContent='놓으면 새로고침';bar.className='ready';}
+    else{txt.textContent='당겨서 새로고침';bar.className='';}
+  },{passive:true});
+
+  document.addEventListener('touchend',()=>{
+    if(!pulling) return;
+    pulling=false;
+    if(peak>=THRESHOLD){
+      txt.textContent='새로고침 중…';
+      bar.style.height='40px';
+      setTimeout(()=>location.reload(),300);
+    } else {
+      bar.style.height='0';
+      bar.style.opacity='0';
+    }
+    startY=0; peak=0;
+  },{passive:true});
+})();
 </script>
 </body>
 </html>
