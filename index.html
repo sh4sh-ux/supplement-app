@@ -33,18 +33,19 @@ html,body{background:var(--bg);color:var(--label);font-family:-apple-system,Blin
 .wrap{max-width:480px;margin:0 auto;padding:calc(var(--safe-top) + 20px) 18px calc(var(--safe-bottom) + var(--tab-h) + 20px)}
 
 /* ── 오늘 탭 ── */
-header{margin-bottom:22px}
-.date{font-size:13px;font-weight:600;color:var(--secondary);letter-spacing:.2px;text-transform:uppercase}
-h1{font-size:30px;font-weight:700;letter-spacing:-.6px;margin-top:3px}
-.progress{margin-top:18px;display:flex;align-items:center;gap:14px}
-.ring{position:relative;width:56px;height:56px;flex-shrink:0}
-.ring svg{transform:rotate(-90deg)}
+header{margin-bottom:22px;text-align:center}
+.date{font-size:11px;font-weight:600;color:var(--secondary);letter-spacing:.3px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bottom:14px}
+.big-ring-wrap{position:relative;width:88px;height:88px;margin:0 auto 14px}
+.big-ring-wrap svg{transform:rotate(-90deg);display:block}
 .ring-track{stroke:var(--sep)}
 .ring-fill{stroke:var(--green);stroke-linecap:round;transition:stroke-dashoffset .5s cubic-bezier(.4,0,.2,1)}
-.ring-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
-.pt-main{font-size:16px;font-weight:600}
-.pt-sub{font-size:13px;color:var(--secondary);margin-top:2px}
-.streak-badge{display:inline-flex;align-items:center;gap:3px;margin-top:5px;font-size:13px;font-weight:600;color:var(--orange)}
+.ring-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700}
+.stats-row{display:flex;justify-content:center;align-items:center;gap:20px}
+.stat{text-align:center}
+.stat-val{font-size:20px;font-weight:700}
+.stat-lbl{font-size:10px;color:var(--secondary);margin-top:2px}
+.stat-sep{width:1px;height:28px;background:var(--sep)}
 
 .block{background:var(--card);border-radius:18px;box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden}
 .block-head{display:flex;align-items:center;gap:11px;padding:16px 18px 12px}
@@ -233,19 +234,19 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.6px;margin-top:3px}
   <header>
     <div class="date" id="date"></div>
     <h1>오늘의 영양제</h1>
-    <div class="progress">
-      <div class="ring">
-        <svg width="56" height="56">
-          <circle class="ring-track" cx="28" cy="28" r="24" fill="none" stroke-width="6"/>
-          <circle class="ring-fill" id="ringFill" cx="28" cy="28" r="24" fill="none" stroke-width="6" stroke-dasharray="150.8" stroke-dashoffset="150.8"/>
-        </svg>
-        <div class="ring-pct" id="ringPct">0%</div>
-      </div>
-      <div class="progress-text">
-        <div class="pt-main" id="ptMain">로딩 중…</div>
-        <div class="pt-sub" id="ptSub"></div>
-        <div class="streak-badge" id="streakBadge" style="display:none"></div>
-      </div>
+    <div class="big-ring-wrap">
+      <svg width="88" height="88">
+        <circle class="ring-track" cx="44" cy="44" r="37" fill="none" stroke-width="7"/>
+        <circle class="ring-fill" id="ringFill" cx="44" cy="44" r="37" fill="none" stroke-width="7" stroke-dasharray="232.5" stroke-dashoffset="232.5"/>
+      </svg>
+      <div class="ring-pct" id="ringPct">0%</div>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val" id="statDone">0</div><div class="stat-lbl">완료</div></div>
+      <div class="stat-sep"></div>
+      <div class="stat"><div class="stat-val" id="statTotal">-</div><div class="stat-lbl">전체</div></div>
+      <div class="stat-sep"></div>
+      <div class="stat"><div class="stat-val" id="statStreak">-</div><div class="stat-lbl">🔥 연속</div></div>
     </div>
   </header>
   <div id="blocks"></div>
@@ -433,7 +434,7 @@ function memoKey(dk){return `supp:memo:${dk}`}
 function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r}
 function fmtDate(){
   const d=new Date(),dows=["일","월","화","수","목","금","토"];
-  return `${d.getMonth()+1}월 ${d.getDate()}일 (${dows[d.getDay()]})`;
+  return `${dows[d.getDay()]}요일 · ${d.getMonth()+1}월 ${d.getDate()}일`;
 }
 
 // ===== ITEMS STORAGE =====
@@ -531,15 +532,15 @@ function updateProgress(){
   const TOTAL=getTotal();
   const done=Object.values(state).filter(Boolean).length;
   const pct=TOTAL>0?Math.round(done/TOTAL*100):0;
-  const circ=150.8;
+  const circ=232.5;
   document.getElementById("ringFill").style.strokeDashoffset=circ-(circ*pct/100);
   document.getElementById("ringPct").textContent=pct+"%";
-  document.getElementById("ptMain").textContent=`${done} / ${TOTAL} 완료`;
-  document.getElementById("ptSub").textContent=done===TOTAL&&TOTAL>0?"오늘 루틴 완료 👏":done===0?"하나씩 탭해서 체크하세요":"거의 다 왔어요";
+  document.getElementById("statDone").textContent=done;
+  document.getElementById("statTotal").textContent=TOTAL;
   const streak=calcStreak();
-  const badge=document.getElementById("streakBadge");
-  if(streak>=2){badge.style.display="inline-flex";badge.textContent=`🔥 ${streak}일 연속`}
-  else badge.style.display="none";
+  const streakEl=document.getElementById("statStreak");
+  streakEl.textContent=streak;
+  streakEl.style.color=streak>=2?'var(--orange)':'var(--label)';
 }
 
 // ===== MEMO =====
