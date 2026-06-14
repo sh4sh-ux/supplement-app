@@ -199,6 +199,23 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.6px;margin-top:3px}
 .backup-btn:last-child{margin-bottom:0}
 .backup-btn:active{opacity:.6}
 
+/* ── Dropbox ── */
+.dbx-connect-btn{display:flex;align-items:center;gap:8px;width:100%;padding:13px;border:none;background:#0061fe;color:#fff;font-size:15px;font-weight:600;cursor:pointer;border-radius:12px;font-family:inherit;margin-bottom:8px;transition:opacity .15s}
+.dbx-connect-btn:active{opacity:.8}
+.dbx-connected-box{border-radius:12px;background:var(--bg);padding:12px 14px;margin-bottom:8px}
+.dbx-account-name{font-size:14px;font-weight:600;color:var(--label)}
+.dbx-account-email{font-size:12px;color:var(--secondary);margin-top:1px}
+.dbx-lastsync{font-size:11px;color:var(--secondary);margin-top:6px}
+.dbx-action-row{display:flex;gap:8px;margin-top:10px}
+.dbx-sync-btn{flex:1;padding:10px;border:none;background:#0061fe;color:#fff;font-size:14px;font-weight:600;cursor:pointer;border-radius:10px;font-family:inherit;transition:opacity .15s}
+.dbx-sync-btn:active{opacity:.8}
+.dbx-disc-btn{padding:10px 14px;border:none;background:var(--done-bg);color:var(--secondary);font-size:14px;font-weight:500;cursor:pointer;border-radius:10px;font-family:inherit;transition:opacity .15s}
+.dbx-disc-btn:active{opacity:.6}
+
+/* ── 토스트 ── */
+.toast{position:fixed;bottom:calc(var(--tab-h) + var(--safe-bottom) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:rgba(28,28,30,.92);color:#fff;font-size:14px;font-weight:500;padding:10px 18px;border-radius:20px;white-space:nowrap;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:999}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
 /* ── 하단 탭바 ── */
 .tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;height:calc(var(--tab-h) + var(--safe-bottom));padding-bottom:var(--safe-bottom);background:rgba(242,242,247,.88);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--sep);display:flex}
 @media(prefers-color-scheme:dark){.tab-bar{background:rgba(28,28,30,.88)}}
@@ -274,7 +291,11 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.6px;margin-top:3px}
   </button>
   <div id="stockCards"></div>
   <div class="backup-block">
-    <div class="backup-title">데이터 백업</div>
+    <div class="backup-title">Dropbox 동기화</div>
+    <div id="dbxSection"></div>
+  </div>
+  <div class="backup-block">
+    <div class="backup-title">로컬 백업</div>
     <button class="backup-btn" id="btnExport">📤 JSON 내보내기</button>
     <button class="backup-btn" id="btnImport">📥 JSON 가져오기</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
@@ -297,6 +318,9 @@ h1{font-size:30px;font-weight:700;letter-spacing:-.6px;margin-top:3px}
     <span>재고</span>
   </button>
 </nav>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
 
 <!-- 날짜 상세 시트 -->
 <div class="sheet-overlay" id="daySheetOverlay"></div>
@@ -860,9 +884,226 @@ document.getElementById('importFile').addEventListener('change',e=>{
   reader.readAsText(file);e.target.value='';
 });
 
+// ===== DROPBOX =====
+const DBX_APP_KEY='gebydukc7b7zn5x';
+const DBX_REDIRECT='https://sh4sh-ux.github.io/supplement-app/history.html';
+const DBX_FILE='/supplement_data.json';
+const DBX_TOKEN='supp:dbx:token';
+const DBX_REFRESH='supp:dbx:refresh';
+const DBX_ACCOUNT='supp:dbx:account';
+const DBX_LASTSYNC='supp:dbx:lastsync';
+const DBX_VERIFIER='supp:dbx:verifier';
+
+function dbxGetToken(){return localStorage.getItem(DBX_TOKEN)}
+
+function _randomStr(len){
+  const arr=new Uint8Array(len);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'').slice(0,len);
+}
+async function _sha256b64url(str){
+  const data=new TextEncoder().encode(str);
+  const hash=await crypto.subtle.digest('SHA-256',data);
+  return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+async function dbxConnect(){
+  const verifier=_randomStr(64);
+  const challenge=await _sha256b64url(verifier);
+  localStorage.setItem(DBX_VERIFIER,verifier);
+  const params=new URLSearchParams({
+    client_id:DBX_APP_KEY,redirect_uri:DBX_REDIRECT,
+    response_type:'code',code_challenge:challenge,
+    code_challenge_method:'S256',token_access_type:'offline'
+  });
+  location.href='https://www.dropbox.com/oauth2/authorize?'+params;
+}
+
+async function dbxHandleCallback(){
+  const params=new URLSearchParams(location.search);
+  const code=params.get('code');
+  if(!code)return;
+  history.replaceState(null,'',location.pathname);
+  const verifier=localStorage.getItem(DBX_VERIFIER);
+  if(!verifier){toast('연결에 실패했습니다. 다시 시도하세요.');return;}
+  localStorage.removeItem(DBX_VERIFIER);
+  try{
+    const res=await fetch('https://api.dropboxapi.com/oauth2/token',{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({
+        code,grant_type:'authorization_code',client_id:DBX_APP_KEY,
+        redirect_uri:DBX_REDIRECT,code_verifier:verifier
+      })
+    });
+    const data=await res.json();
+    if(!data.access_token)throw new Error(data.error_description||'토큰 발급 실패');
+    localStorage.setItem(DBX_TOKEN,data.access_token);
+    if(data.refresh_token)localStorage.setItem(DBX_REFRESH,data.refresh_token);
+    try{
+      const acRes=await fetch('https://api.dropboxapi.com/2/users/get_current_account',{
+        method:'POST',headers:{Authorization:`Bearer ${data.access_token}`}
+      });
+      const ac=await acRes.json();
+      localStorage.setItem(DBX_ACCOUNT,JSON.stringify({name:ac.name?.display_name||'',email:ac.email||''}));
+    }catch(e2){}
+    toast('Dropbox 연결됐어요! ☁');
+    renderDbxSection();
+    await dbxSync();
+  }catch(err){toast('연결 실패: '+err.message);}
+}
+
+async function _dbxRefresh(){
+  const refresh=localStorage.getItem(DBX_REFRESH);
+  if(!refresh)return null;
+  try{
+    const res=await fetch('https://api.dropboxapi.com/oauth2/token',{
+      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({grant_type:'refresh_token',refresh_token:refresh,client_id:DBX_APP_KEY})
+    });
+    const data=await res.json();
+    if(data.access_token){localStorage.setItem(DBX_TOKEN,data.access_token);return data.access_token;}
+    return null;
+  }catch(e){return null;}
+}
+
+async function _dbxUpload(token,body){
+  const res=await fetch('https://content.dropboxapi.com/2/files/upload',{
+    method:'POST',
+    headers:{
+      'Authorization':`Bearer ${token}`,
+      'Content-Type':'application/octet-stream',
+      'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE,mode:'overwrite',autorename:false,mute:true})
+    },body
+  });
+  if(res.status===401){
+    const newToken=await _dbxRefresh();
+    if(!newToken)return false;
+    const res2=await fetch('https://content.dropboxapi.com/2/files/upload',{
+      method:'POST',
+      headers:{
+        'Authorization':`Bearer ${newToken}`,
+        'Content-Type':'application/octet-stream',
+        'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE,mode:'overwrite',autorename:false,mute:true})
+      },body
+    });
+    return res2.ok;
+  }
+  return res.ok;
+}
+
+async function _dbxDownload(token){
+  const res=await fetch('https://content.dropboxapi.com/2/files/download',{
+    method:'POST',
+    headers:{'Authorization':`Bearer ${token}`,'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE})}
+  });
+  if(res.status===409)return null; // 파일 없음
+  if(res.status===401){
+    const newToken=await _dbxRefresh();
+    if(!newToken)return null;
+    const res2=await fetch('https://content.dropboxapi.com/2/files/download',{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${newToken}`,'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE})}
+    });
+    return res2.ok?JSON.parse(await res2.text()):null;
+  }
+  return res.ok?JSON.parse(await res.text()):null;
+}
+
+function _gatherData(){
+  const data={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('supp:')&&!k.startsWith('supp:dbx:')){
+      try{data[k]=JSON.parse(localStorage.getItem(k))}catch(e){data[k]=localStorage.getItem(k)}
+    }
+  }
+  return data;
+}
+
+let _syncing=false;
+async function dbxSync(uploadOnly=false){
+  const token=dbxGetToken();if(!token)return;
+  if(_syncing)return;_syncing=true;
+  renderDbxSection('동기화 중…');
+  try{
+    if(!uploadOnly){
+      const remote=await _dbxDownload(token);
+      if(remote&&typeof remote==='object'){
+        const remoteAt=remote['supp:dbx:syncedAt']||'';
+        const localAt=localStorage.getItem(DBX_LASTSYNC)||'';
+        if(remoteAt>localAt){
+          Object.entries(remote).forEach(([k,v])=>{
+            if(k.startsWith('supp:')&&!k.startsWith('supp:dbx:'))
+              localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));
+          });
+          loadToday();initMemo();render();
+          toast('Dropbox에서 최신 데이터를 불러왔어요');
+        }
+      }
+    }
+    const data=_gatherData();
+    data['supp:dbx:syncedAt']=new Date().toISOString();
+    const ok=await _dbxUpload(dbxGetToken(),JSON.stringify(data,null,2));
+    if(ok){
+      localStorage.setItem(DBX_LASTSYNC,new Date().toISOString());
+      if(!uploadOnly)toast('동기화 완료 ☁');
+    }else{toast('업로드 실패');}
+  }catch(err){toast('동기화 실패: '+err.message);}
+  finally{_syncing=false;renderDbxSection();}
+}
+
+function dbxDisconnect(){
+  if(!confirm('Dropbox 연결을 해제할까요?'))return;
+  [DBX_TOKEN,DBX_REFRESH,DBX_ACCOUNT,DBX_LASTSYNC].forEach(k=>localStorage.removeItem(k));
+  toast('연결 해제됐습니다');
+  renderDbxSection();
+}
+
+function renderDbxSection(statusMsg=null){
+  const el=document.getElementById('dbxSection');if(!el)return;
+  const token=dbxGetToken();
+  if(!token){
+    el.innerHTML=`<button class="dbx-connect-btn" id="dbxConnectBtn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2l6 3.75L6 9.5 0 5.75zm12 0l6 3.75-6 3.75-6-3.75zm-12 9l6 3.75L0 18.5l-6-3.75zm12 0l6 3.75-6 3.75-6-3.75zM6 20.25L12 24l6-3.75-6-3.75z"/></svg>
+      Dropbox 연결하기
+    </button>`;
+    document.getElementById('dbxConnectBtn').addEventListener('click',dbxConnect);
+    return;
+  }
+  let acHtml='';
+  try{
+    const ac=JSON.parse(localStorage.getItem(DBX_ACCOUNT)||'{}');
+    if(ac.name)acHtml=`<div class="dbx-account-name">${ac.name}</div><div class="dbx-account-email">${ac.email}</div>`;
+  }catch(e){}
+  const last=localStorage.getItem(DBX_LASTSYNC);
+  const lastTxt=last?`마지막 동기화: ${new Date(last).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}`:'아직 동기화 안 됨';
+  el.innerHTML=`<div class="dbx-connected-box">
+    ${acHtml}
+    <div class="dbx-lastsync">${statusMsg||('☁ '+lastTxt)}</div>
+    <div class="dbx-action-row">
+      <button class="dbx-sync-btn" id="dbxSyncBtn">지금 동기화</button>
+      <button class="dbx-disc-btn" id="dbxDiscBtn">연결 해제</button>
+    </div>
+  </div>`;
+  document.getElementById('dbxSyncBtn').addEventListener('click',()=>dbxSync());
+  document.getElementById('dbxDiscBtn').addEventListener('click',dbxDisconnect);
+}
+
+// ===== 토스트 =====
+let _toastTimer=null;
+function toast(msg){
+  const el=document.getElementById('toast');if(!el)return;
+  el.textContent=msg;el.classList.add('show');
+  if(_toastTimer)clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>el.classList.remove('show'),2800);
+}
+
 // ===== INIT =====
 document.getElementById("date").textContent=fmtDate();
 loadToday();initMemo();render();
+renderDbxSection();
+dbxHandleCallback();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
