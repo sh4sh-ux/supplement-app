@@ -49,7 +49,7 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
 
 .block{background:var(--card);border-radius:18px;box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden}
 .block-head{display:flex;align-items:center;gap:11px;padding:16px 18px 12px;cursor:pointer;user-select:none}
-.icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 2px 4px rgba(255,255,255,.28),inset 0 -2px 4px rgba(0,0,0,.15)}
 .icon svg{width:19px;height:19px}
 .block-title{font-size:17px;font-weight:700;letter-spacing:-.3px}
 .block-when{font-size:12px;color:var(--secondary);margin-top:1px;font-weight:500}
@@ -78,6 +78,19 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
 
 .reset{width:auto;display:block;margin:0 auto;padding:8px 20px;border:none;background:transparent;color:var(--tertiary);font-size:13px;font-weight:500;cursor:pointer;border-radius:12px;transition:all .15s;font-family:inherit}
 .reset:active{color:var(--red)}
+
+/* ── 영양제 관리 버튼 (오늘 탭 헤더) ── */
+.hdr-manage-btn{display:flex;align-items:center;justify-content:center;gap:6px;margin:12px auto 0;padding:7px 16px;border:1.5px solid var(--sep);background:transparent;color:var(--secondary);font-size:13px;font-weight:600;cursor:pointer;border-radius:20px;font-family:inherit;transition:all .15s}
+.hdr-manage-btn:active{border-color:var(--blue);color:var(--blue)}
+.hdr-manage-btn svg{flex-shrink:0}
+
+/* ── 영양제 관리 시트 내부 ── */
+.manage-block-label{padding:14px 20px 6px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.manage-item-row{display:flex;align-items:center;padding:12px 20px;border-top:.5px solid var(--sep);cursor:pointer;transition:background .12s;gap:12px}
+.manage-item-row:active{background:var(--done-bg)}
+.manage-item-chevron{width:16px;height:16px;flex-shrink:0;color:var(--tertiary)}
+.manage-add-row{display:flex;align-items:center;justify-content:center;gap:6px;margin:4px 20px 2px;padding:11px;border:1.5px dashed var(--sep);border-radius:12px;cursor:pointer;color:var(--secondary);font-size:13px;font-weight:600;transition:all .15s}
+.manage-add-row:active{border-color:var(--blue);color:var(--blue)}
 
 /* ── 기록 탭 ── */
 .log-summary{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px;display:flex}
@@ -257,6 +270,10 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
       <div class="stat-sep"></div>
       <div class="stat"><div class="stat-val" id="statStreak">-</div><div class="stat-lbl">🔥 연속</div></div>
     </div>
+    <button class="hdr-manage-btn" id="btnManageItems">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      영양제 관리
+    </button>
   </header>
   <div id="blocks"></div>
   <div class="memo-block">
@@ -330,6 +347,17 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
   <div class="sheet-body" id="daySheetBody"></div>
 </div>
 
+<!-- 영양제 관리 시트 -->
+<div class="sheet-overlay" id="manageSheetOverlay"></div>
+<div class="sheet" id="manageSheet">
+  <div class="sheet-handle"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:.5px solid var(--sep)">
+    <div style="font-size:17px;font-weight:700">영양제 관리</div>
+    <button id="manageAddNewBtn" style="border:none;background:transparent;color:var(--blue);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;padding:4px 0">+ 추가</button>
+  </div>
+  <div id="manageList"></div>
+</div>
+
 <!-- 영양제 추가/편집 시트 -->
 <div class="sheet-overlay" id="itemSheetOverlay"></div>
 <div class="sheet" id="itemSheet">
@@ -351,6 +379,13 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
     <div class="auto-result" id="autoResult"></div>
     <div class="field-label">복용 메모 <span style="font-weight:400;text-transform:none;letter-spacing:0">(선택)</span></div>
     <input class="field-input" id="editNote" placeholder="예: 식후 복용, 지용성이므로 식사와 함께" autocomplete="off">
+    <div id="initStockSection">
+      <div class="field-label">초기 재고 수량 <span style="font-weight:400;text-transform:none;letter-spacing:0">(선택)</span></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input class="field-input" id="editInitStock" type="number" min="0" placeholder="지금 보유 중인 수량" style="flex:1">
+        <span style="font-size:15px;color:var(--secondary);white-space:nowrap">개</span>
+      </div>
+    </div>
     <button class="save-btn" id="saveItemBtn">저장</button>
     <button class="delete-btn" id="deleteItemBtn" style="display:none">이 영양제 삭제</button>
   </div>
@@ -360,19 +395,23 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
 // ===== TIMING BLOCKS (고정 메타) =====
 const TIMING_META = {
   morning: {
-    title:"아침", when:"기상 후 · 식후", color:"var(--morning)",
+    title:"아침", when:"기상 후 · 식후", color:"linear-gradient(145deg,#ffb340,#ff9500)",
+    textColor:"var(--morning)",
     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-linecap="round"><path d="M4 13h16" stroke-width="2"/><path d="M12 3v2M5.6 5.6l1.4 1.4M18.4 5.6l-1.4 1.4M3 11h2M19 11h2" stroke-width="1.8"/><path d="M7 13A5 5 0 0 1 17 13Z" fill="#fff" stroke="none"/></svg>'
   },
   noon: {
-    title:"점심", when:"식후", color:"var(--noon)",
+    title:"점심", when:"식후", color:"linear-gradient(145deg,#5ac8fa,#32ade6)",
+    textColor:"var(--noon)",
     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-linecap="round"><circle cx="12" cy="12" r="5.5" fill="#fff"/><path d="M12 1.5v2M12 20.5v2M1.5 12h2M20.5 12h2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M4.6 19.4l1.4-1.4M18 6l1.4-1.4" stroke-width="2"/></svg>'
   },
   evening: {
-    title:"저녁", when:"식후 (가장 기름진 식사)", color:"var(--evening)",
+    title:"저녁", when:"식후 (가장 기름진 식사)", color:"linear-gradient(145deg,#ff8f62,#ff6b35)",
+    textColor:"var(--evening)",
     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-linecap="round"><path d="M3 17h18" stroke-width="2"/><path d="M6.5 17A5.5 5.5 0 0 1 17.5 17Z" fill="#fff" stroke="none"/><path d="M12 5v3M6 7.5l2 2M18 7.5l-2 2" stroke-width="1.8"/></svg>'
   },
   night: {
-    title:"취침 전", when:"잠들기 30분~1시간 전", color:"var(--night)",
+    title:"취침 전", when:"잠들기 30분~1시간 전", color:"linear-gradient(145deg,#8b8af5,#5e5ce6)",
+    textColor:"var(--night)",
     icon:'<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="#fff"/></svg>'
   }
 };
@@ -380,14 +419,14 @@ const TIMING_ORDER = ['morning','noon','evening','night'];
 
 // ===== 기본 영양제 목록 =====
 const DEFAULT_ITEMS = [
-  {id:"m1",name:"비맥스 제트",brand:"",timing:"morning",note:"B군은 각성 효과 → 아침에. 소변이 진한 노란색인 건 정상이에요"},
-  {id:"m2",name:"비타민C 1000mg (½)",brand:"",timing:"morning",note:"나눠 먹는 절반, 식후 물과 함께"},
-  {id:"n1",name:"코큐텐 100mg",brand:"",timing:"noon",note:"지용성 — 식사 지방과 함께 흡수↑"},
-  {id:"n2",name:"루테인 지아잔틴",brand:"",timing:"noon",note:"지용성 — 점심 식사 때 같이"},
-  {id:"n3",name:"비타민C 1000mg (½)",brand:"",timing:"noon",note:"나머지 절반"},
-  {id:"e1",name:"오메가3 알티지 (RTG)",brand:"",timing:"evening",note:"지방 많은 식사와 함께 흡수가 가장 좋아요"},
-  {id:"e2",name:"밀크씨슬 (실리마린)",brand:"",timing:"evening",note:"식후 복용"},
-  {id:"b1",name:"마그네슘 2정 (210mg)",brand:"",timing:"night",note:"KAL 비스글리시네이트 · 이완·수면용"}
+  {id:"m1",name:"비맥스 메가",brand:"",timing:"morning",note:"B군 각성 효과 → 아침 복용. 소변 노란색은 정상"},
+  {id:"m2",name:"비타민C 1000mg",brand:"",timing:"morning",note:"아침 분할 복용 (½) · 식후"},
+  {id:"n1",name:"코큐텐 100mg",brand:"",timing:"noon",note:"지용성 — 식사 지방과 함께"},
+  {id:"n2",name:"루테인 지아잔틴",brand:"",timing:"noon",note:"지용성 — 점심 식사와 함께"},
+  {id:"n3",name:"비타민C 1000mg",brand:"",timing:"noon",note:"점심 분할 복용 (½) · 식후"},
+  {id:"e1",name:"오메가3 RTG",brand:"",timing:"evening",note:"지방 많은 저녁 식사와 함께"},
+  {id:"e2",name:"밀크씨슬",brand:"",timing:"evening",note:"식후 복용"},
+  {id:"b1",name:"마그네슘 2정",brand:"KAL",timing:"night",note:"비스글리시네이트 · 이완·수면용"}
 ];
 
 // ===== 자동 추천 규칙 =====
@@ -730,7 +769,7 @@ function loadStock(){try{const s=localStorage.getItem('supp:stock');return s?JSO
 function saveStock(stock){try{localStorage.setItem('supp:stock',JSON.stringify(stock))}catch(e){}}
 function getOrInitStock(){
   const stock=loadStock();
-  getStockNames().forEach(name=>{if(!stock[name])stock[name]={count:60,perDay:1}});
+  getStockNames().forEach(name=>{if(!stock[name])stock[name]={count:0,perDay:1}});
   return stock;
 }
 
@@ -795,15 +834,18 @@ function renderStock(){
 let editingId=null;
 let selectedTiming='morning';
 
-function openItemSheet(item=null){
+function openItemSheet(item=null,defaultTiming=null){
   editingId=item?item.id:null;
-  document.getElementById('itemSheetTitle').textContent=item?'영양제 편집':'영양제 추가';
+  const isNew=!item;
+  document.getElementById('itemSheetTitle').textContent=isNew?'영양제 추가':'영양제 편집';
   document.getElementById('editName').value=item?item.name:'';
   document.getElementById('editBrand').value=item?item.brand:'';
   document.getElementById('editNote').value=item?item.note:'';
   document.getElementById('autoResult').textContent='';
-  document.getElementById('deleteItemBtn').style.display=item?'':'none';
-  selectedTiming=item?item.timing:'morning';
+  document.getElementById('deleteItemBtn').style.display=isNew?'none':'';
+  document.getElementById('initStockSection').style.display=isNew?'':'none';
+  if(isNew)document.getElementById('editInitStock').value='';
+  selectedTiming=item?item.timing:(defaultTiming||'morning');
   updateTimingBtns();
   document.getElementById('itemSheetOverlay').classList.add('open');
   document.getElementById('itemSheet').classList.add('open');
@@ -845,6 +887,7 @@ document.getElementById('saveItemBtn').addEventListener('click',()=>{
   const brand=document.getElementById('editBrand').value.trim();
   const note=document.getElementById('editNote').value.trim();
   const items=getItems();
+  const isNew=!editingId;
   if(editingId){
     const idx=items.findIndex(it=>it.id===editingId);
     if(idx>=0)items[idx]={...items[idx],name,brand,timing:selectedTiming,note};
@@ -852,8 +895,19 @@ document.getElementById('saveItemBtn').addEventListener('click',()=>{
     items.push({id:genId(),name,brand,timing:selectedTiming,note});
   }
   saveItems(items);
+  if(isNew){
+    const initCount=parseInt(document.getElementById('editInitStock').value)||0;
+    if(initCount>0){
+      const normName=name.replace(/\s*\(½\)$/,'').trim();
+      const st=loadStock();
+      if(!st[normName])st[normName]={count:initCount,perDay:1};
+      else st[normName].count=initCount;
+      saveStock(st);
+    }
+  }
   closeItemSheet();
   render();renderStock();
+  if(_editFromManage){_editFromManage=false;setTimeout(()=>openManageSheet(),280);}
 });
 
 document.getElementById('deleteItemBtn').addEventListener('click',()=>{
@@ -862,6 +916,7 @@ document.getElementById('deleteItemBtn').addEventListener('click',()=>{
   saveItems(items);
   closeItemSheet();
   render();renderStock();
+  if(_editFromManage){_editFromManage=false;setTimeout(()=>openManageSheet(),280);}
 });
 
 document.getElementById('btnAddItem').addEventListener('click',()=>openItemSheet());
@@ -1103,6 +1158,61 @@ function renderDbxSection(statusMsg=null){
   </div>`;
   document.getElementById('dbxSyncBtn').addEventListener('click',()=>dbxSync());
   document.getElementById('dbxDiscBtn').addEventListener('click',dbxDisconnect);
+}
+
+// ===== 영양제 관리 시트 =====
+let _editFromManage=false;
+
+function openManageSheet(){
+  renderManageList();
+  document.getElementById('manageSheetOverlay').classList.add('open');
+  document.getElementById('manageSheet').classList.add('open');
+}
+function closeManageSheet(){
+  document.getElementById('manageSheetOverlay').classList.remove('open');
+  document.getElementById('manageSheet').classList.remove('open');
+}
+document.getElementById('manageSheetOverlay').addEventListener('click',closeManageSheet);
+document.getElementById('btnManageItems').addEventListener('click',openManageSheet);
+document.getElementById('manageAddNewBtn').addEventListener('click',()=>{
+  _editFromManage=true;closeManageSheet();setTimeout(()=>openItemSheet(),280);
+});
+
+function renderManageList(){
+  const items=getItems();
+  let html='';
+  TIMING_ORDER.forEach(t=>{
+    const meta=TIMING_META[t];
+    const tItems=items.filter(it=>it.timing===t);
+    html+=`<div class="manage-block-label" style="color:${meta.textColor}">${meta.title}</div>`;
+    tItems.forEach(it=>{
+      html+=`<div class="manage-item-row" data-mid="${it.id}">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;font-weight:600;letter-spacing:-.2px">${it.name}${it.brand?` <span style="font-size:13px;color:var(--secondary)">${it.brand}</span>`:''}</div>
+          ${it.note?`<div style="font-size:12px;color:var(--secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.note}</div>`:''}
+        </div>
+        <svg class="manage-item-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </div>`;
+    });
+    html+=`<div class="manage-add-row" data-add-t="${t}">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      ${meta.title}에 추가
+    </div>`;
+  });
+  const list=document.getElementById('manageList');
+  list.innerHTML=html;
+  list.querySelectorAll('[data-mid]').forEach(row=>{
+    row.addEventListener('click',()=>{
+      const item=getItems().find(it=>it.id===row.dataset.mid);
+      if(item){_editFromManage=true;closeManageSheet();setTimeout(()=>openItemSheet(item),280);}
+    });
+  });
+  list.querySelectorAll('[data-add-t]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      _editFromManage=true;closeManageSheet();
+      setTimeout(()=>openItemSheet(null,btn.dataset.addT),280);
+    });
+  });
 }
 
 // ===== 토스트 =====
