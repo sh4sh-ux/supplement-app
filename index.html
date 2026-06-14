@@ -76,15 +76,8 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
 .memo-input{width:100%;border:none;background:transparent;font-size:15px;color:var(--label);font-family:inherit;outline:none;resize:none;line-height:1.4}
 .memo-input::placeholder{color:var(--tertiary)}
 
-.tip{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px}
-.tip-title{font-size:13px;font-weight:700;color:var(--secondary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
-.tip-list{list-style:none}
-.tip-list li{font-size:13.5px;line-height:1.5;padding-left:16px;position:relative;margin-bottom:6px}
-.tip-list li:last-child{margin-bottom:0}
-.tip-list li::before{content:"";position:absolute;left:2px;top:8px;width:4px;height:4px;border-radius:50%;background:var(--tertiary)}
-.reset{width:100%;padding:13px;border:none;background:transparent;color:var(--red);font-size:15px;font-weight:600;cursor:pointer;border-radius:12px;transition:background .15s;font-family:inherit}
-.reset:active{background:rgba(255,59,48,.08)}
-.disclaimer{font-size:11.5px;color:var(--secondary);text-align:center;line-height:1.5;margin-top:18px;padding:0 8px}
+.reset{width:auto;display:block;margin:0 auto;padding:8px 20px;border:none;background:transparent;color:var(--tertiary);font-size:13px;font-weight:500;cursor:pointer;border-radius:12px;transition:all .15s;font-family:inherit}
+.reset:active{color:var(--red)}
 
 /* ── 기록 탭 ── */
 .log-summary{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px;display:flex}
@@ -260,17 +253,7 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
     <div class="memo-label">오늘의 메모</div>
     <textarea class="memo-input" id="memoInput" rows="2" placeholder="컨디션이나 특이사항을 기록하세요…"></textarea>
   </div>
-  <div class="tip">
-    <div class="tip-title">효율 포인트</div>
-    <ul class="tip-list">
-      <li>지용성 3총사(코큐텐·루테인·오메가3)는 기름기 있는 식사 직후에 — 흡수율이 올라갑니다.</li>
-      <li>비타민B(비맥스)는 아침 고정. 늦게 먹으면 잠을 방해할 수 있어요.</li>
-      <li>마그네슘은 자기 전에만 따로 — 다른 미네랄·약 흡수 방해를 피합니다.</li>
-      <li>비타민C는 아침·점심으로 나눠 먹으면 흡수에 유리해요.</li>
-    </ul>
-  </div>
-  <button class="reset" id="reset">오늘 체크 초기화</button>
-  <p class="disclaimer">개인 참고용 루틴입니다. 복용 중인 약이나 지병이 있으면 약사·의사와 전체 목록을 점검하세요.</p>
+  <button class="reset" id="reset">오늘 초기화</button>
 </div>
 </div>
 
@@ -546,6 +529,7 @@ function render(){
   updateProgress();
 }
 
+let _prevPct=0;
 function updateProgress(){
   const TOTAL=getTotal();
   const done=Object.values(state).filter(Boolean).length;
@@ -557,8 +541,10 @@ function updateProgress(){
   document.getElementById("statTotal").textContent=TOTAL;
   const streak=calcStreak();
   const streakEl=document.getElementById("statStreak");
-  streakEl.textContent=streak;
-  streakEl.style.color=streak>=2?'var(--orange)':'var(--label)';
+  streakEl.textContent=streak>=1?streak:'-';
+  streakEl.style.color=streak>=2?'var(--orange)':'var(--secondary)';
+  if(pct===100&&_prevPct<100)setTimeout(()=>toast('오늘 루틴 완료! 잘 하셨어요 🎉'),300);
+  _prevPct=pct;
 }
 
 // ===== MEMO =====
