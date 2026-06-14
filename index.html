@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>오늘의 영양제</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f2f2f7">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- iOS standalone -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="영양제">
+<link rel="apple-touch-icon" href="icon-180.png">
+
+<style>
+  :root {
+    --bg: #f2f2f7;
+    --card: #ffffff;
+    --label: #1c1c1e;
+    --secondary: #8e8e93;
+    --tertiary: #c7c7cc;
+    --separator: #e5e5ea;
+    --morning: #ff9f0a;
+    --noon: #32ade6;
+    --evening: #ff6b35;
+    --night: #5e5ce6;
+    --done-bg: #f7f7fa;
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.05);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --card: #1c1c1e;
+      --label: #ffffff;
+      --secondary: #8e8e93;
+      --tertiary: #48484a;
+      --separator: #38383a;
+      --done-bg: #2c2c2e;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.4);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--label);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Apple SD Gothic Neo", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+  body { min-height: 100vh; }
+  .wrap {
+    max-width: 480px; margin: 0 auto;
+    padding: calc(var(--safe-top) + 20px) 18px calc(var(--safe-bottom) + 50px);
+  }
+
+  header { margin-bottom: 22px; }
+  .date { font-size: 13px; font-weight: 600; color: var(--secondary); letter-spacing: 0.2px; text-transform: uppercase; }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.6px; margin-top: 3px; }
+
+  .progress { margin-top: 18px; display: flex; align-items: center; gap: 14px; }
+  .ring { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring-track { stroke: var(--separator); }
+  .ring-fill { stroke: #34c759; stroke-linecap: round; transition: stroke-dashoffset 0.5s cubic-bezier(0.4,0,0.2,1); }
+  .ring-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  .progress-text .pt-main { font-size: 16px; font-weight: 600; }
+  .progress-text .pt-sub { font-size: 13px; color: var(--secondary); margin-top: 2px; }
+
+  .block { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); margin-bottom: 16px; overflow: hidden; }
+  .block-head { display: flex; align-items: center; gap: 11px; padding: 16px 18px 12px; }
+  .icon { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .icon svg { width: 18px; height: 18px; }
+  .block-title { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .block-when { font-size: 12px; color: var(--secondary); margin-top: 1px; font-weight: 500; }
+
+  .item { display: flex; align-items: flex-start; gap: 13px; padding: 13px 18px; cursor: pointer; border-top: 0.5px solid var(--separator); transition: background 0.15s; }
+  .item:active { background: var(--done-bg); }
+  .check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--tertiary); flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .check svg { width: 14px; height: 14px; opacity: 0; transform: scale(0.5); transition: all 0.2s; stroke: #fff; }
+  .item.done .check { background: #34c759; border-color: #34c759; }
+  .item.done .check svg { opacity: 1; transform: scale(1); }
+  .item-body { flex: 1; min-width: 0; }
+  .item-name { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; transition: color 0.2s; }
+  .item-note { font-size: 13px; color: var(--secondary); margin-top: 2px; line-height: 1.35; }
+  .item.done .item-name { color: var(--secondary); text-decoration: line-through; text-decoration-color: var(--tertiary); }
+
+  .tip { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 16px; }
+  .tip-title { font-size: 13px; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+  .tip-list { list-style: none; }
+  .tip-list li { font-size: 13.5px; line-height: 1.5; color: var(--label); padding-left: 16px; position: relative; margin-bottom: 6px; }
+  .tip-list li:last-child { margin-bottom: 0; }
+  .tip-list li::before { content: ""; position: absolute; left: 2px; top: 8px; width: 4px; height: 4px; border-radius: 50%; background: var(--tertiary); }
+
+  .reset { width: 100%; padding: 13px; border: none; background: transparent; color: #ff3b30; font-size: 15px; font-weight: 600; cursor: pointer; border-radius: 12px; transition: background 0.15s; font-family: inherit; }
+  .reset:active { background: rgba(255,59,48,0.08); }
+
+  .disclaimer { font-size: 11.5px; color: var(--secondary); text-align: center; line-height: 1.5; margin-top: 18px; padding: 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="date" id="date"></div>
+    <h1>오늘의 영양제</h1>
+    <div class="progress">
+      <div class="ring">
+        <svg width="56" height="56">
+          <circle class="ring-track" cx="28" cy="28" r="24" fill="none" stroke-width="6"/>
+          <circle class="ring-fill" id="ringFill" cx="28" cy="28" r="24" fill="none" stroke-width="6"
+                  stroke-dasharray="150.8" stroke-dashoffset="150.8"/>
+        </svg>
+        <div class="ring-pct" id="ringPct">0%</div>
+      </div>
+      <div class="progress-text">
+        <div class="pt-main" id="ptMain">0 / 8 완료</div>
+        <div class="pt-sub" id="ptSub">하나씩 탭해서 체크하세요</div>
+      </div>
+    </div>
+  </header>
+
+  <div id="blocks"></div>
+
+  <div class="tip">
+    <div class="tip-title">효율 포인트</div>
+    <ul class="tip-list">
+      <li>지용성 3총사(코큐텐·루테인·오메가3)는 기름기 있는 식사 직후에 — 흡수율이 올라갑니다.</li>
+      <li>비타민B(비맥스)는 아침 고정. 늦게 먹으면 잠을 방해할 수 있어요.</li>
+      <li>마그네슘은 자기 전에만 따로 — 다른 미네랄·약 흡수 방해를 피합니다.</li>
+      <li>비타민C는 아침·점심으로 나눠 먹으면 흡수에 유리해요.</li>
+    </ul>
+  </div>
+
+  <button class="reset" id="reset">오늘 체크 초기화</button>
+
+  <p class="disclaimer">개인 참고용 루틴입니다. 복용 중인 약이나 지병이 있으면 약사·의사와 전체 목록을 점검하세요.</p>
+</div>
+
+<script>
+const SCHEDULE = [
+  {
+    key: "morning", title: "아침", when: "기상 후 · 식후", color: "var(--morning)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+    items: [
+      { id: "m1", name: "비맥스 제트", note: "B군은 각성 효과 → 아침에. 소변이 진한 노란색인 건 정상이에요" },
+      { id: "m2", name: "비타민C 1000mg (½)", note: "나눠 먹는 절반, 식후 물과 함께" }
+    ]
+  },
+  {
+    key: "noon", title: "점심", when: "식후", color: "var(--noon)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>',
+    items: [
+      { id: "n1", name: "코큐텐 100mg", note: "지용성 — 식사 지방과 함께 흡수↑" },
+      { id: "n2", name: "루테인 지아잔틴", note: "지용성 — 점심 식사 때 같이" },
+      { id: "n3", name: "비타민C 1000mg (½)", note: "나머지 절반" }
+    ]
+  },
+  {
+    key: "evening", title: "저녁", when: "식후 (가장 기름진 식사)", color: "var(--evening)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 18a5 5 0 0 0-10 0"/><path d="M12 2v7M4.2 10.2l1.4 1.4M1 18h2M21 18h2M18.4 11.6l1.4-1.4M23 22H1"/><path d="M8 6l4 3 4-3"/></svg>',
+    items: [
+      { id: "e1", name: "오메가3 알티지 (RTG)", note: "지방 많은 식사와 함께 흡수가 가장 좋아요" },
+      { id: "e2", name: "밀크씨슬 (실리마린)", note: "식후 — NOW 제품과 중복 확인하세요" }
+    ]
+  },
+  {
+    key: "night", title: "취침 전", when: "잠들기 30분~1시간 전", color: "var(--night)",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+    items: [
+      { id: "b1", name: "마그네슘 2정 (210mg)", note: "KAL 비스글리시네이트 · 이완·수면용" }
+    ]
+  }
+];
+
+const TOTAL = SCHEDULE.reduce((s, b) => s + b.items.length, 0);
+
+function todayKey(){ const d=new Date(); return `supp:${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; }
+
+let state = {};
+
+function load(){
+  try { const s = localStorage.getItem(todayKey()); if(s) state = JSON.parse(s); } catch(e){ state = {}; }
+}
+function save(){
+  try { localStorage.setItem(todayKey(), JSON.stringify(state)); } catch(e){}
+}
+
+function fmtDate(){
+  const d=new Date();
+  const days=["일","월","화","수","목","금","토"];
+  return `${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+}
+
+function render(){
+  const blocks=document.getElementById("blocks");
+  blocks.innerHTML="";
+  SCHEDULE.forEach(b=>{
+    const el=document.createElement("div");
+    el.className="block";
+    let html=`<div class="block-head">
+      <div class="icon" style="background:${b.color};color:#fff">${b.icon}</div>
+      <div><div class="block-title">${b.title}</div><div class="block-when">${b.when}</div></div>
+    </div>`;
+    b.items.forEach(it=>{
+      const done=state[it.id]?"done":"";
+      html+=`<div class="item ${done}" data-id="${it.id}">
+        <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+        <div class="item-body"><div class="item-name">${it.name}</div><div class="item-note">${it.note}</div></div>
+      </div>`;
+    });
+    el.innerHTML=html;
+    blocks.appendChild(el);
+  });
+  document.querySelectorAll(".item").forEach(item=>{
+    item.addEventListener("click",()=>{
+      const id=item.dataset.id;
+      state[id]=!state[id];
+      item.classList.toggle("done",state[id]);
+      updateProgress();
+      save();
+      if(navigator.vibrate) navigator.vibrate(8);
+    });
+  });
+  updateProgress();
+}
+
+function updateProgress(){
+  const done=Object.values(state).filter(Boolean).length;
+  const pct=Math.round(done/TOTAL*100);
+  const circ=150.8;
+  document.getElementById("ringFill").style.strokeDashoffset=circ-(circ*pct/100);
+  document.getElementById("ringPct").textContent=pct+"%";
+  document.getElementById("ptMain").textContent=`${done} / ${TOTAL} 완료`;
+  document.getElementById("ptSub").textContent= done===TOTAL ? "오늘 루틴 완료 👏" : (done===0 ? "하나씩 탭해서 체크하세요" : "거의 다 왔어요");
+}
+
+document.getElementById("date").textContent=fmtDate();
+load();
+render();
+document.getElementById("reset").addEventListener("click",()=>{
+  state={};
+  save();
+  render();
+});
+
+// register service worker for offline use
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
