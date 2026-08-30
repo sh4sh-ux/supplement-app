@@ -1171,6 +1171,11 @@ function renderDbxSection(statusMsg=null){
     </button>`;
     document.getElementById('dbxConnectBtn').addEventListener('click',()=>{
       const typed=(document.getElementById('dbxAppKeyInp')?.value||'').trim();
+      if(typed&&typed!==localStorage.getItem(DBX_APPKEY_LS)){
+    // 옛 키로 받은 refresh token은 새 키(client_id)로는 갱신되지 않는다.
+    // 남겨두면 '연결됨'으로 오인해 요청만 401로 실패하므로 함께 버린다.
+        [DBX_TOKEN,DBX_REFRESH].forEach(k=>localStorage.removeItem(k));
+      }
       if(typed)localStorage.setItem(DBX_APPKEY_LS,typed);
       dbxConnect();
     });
