@@ -1162,16 +1162,39 @@ function dbxDisconnect(){
    · 원본은 지우지 않는다 — 복사만 한다
    · 앱 폴더 모음 이름은 계정 언어를 따른다 (한국어 계정은 '앱') */
 const APPS_ROOTS=['/앱','/Apps'];
+let _scannedAppDirs=[];
 const LEGACY_RELS=['/07_Apps/영양제(Supplement)/supplement_data.json','/supplement_data.json'];
 async function _dbxRpcS(token,ep,body){
   return fetch('https://api.dropboxapi.com/2/'+ep,{method:'POST',
     headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
 }
+async function _importDiag(token){
+  // 실패 원인을 직접 확인해 알려준다. 여기서 막히는 경우는 거의
+  // App key가 아직 옛 것(App folder 권한)이라 앱 폴더 모음이 안 보이는 상황이다.
+  const ls=async path=>{ try{ const r=await _dbxRpcS(token,'files/list_folder',{path});
+    return r.ok?((await r.json()).entries||[]):null; }catch(e){ return null; } };
+  const names=(await ls(''))?.map(e=>e.name)||[];
+  const hasApps=!!(await ls('/앱'))||!!(await ls('/Apps'));
+  if(!hasApps){
+    return 'App key가 아직 옛 것(App folder 권한)입니다.\n'
+      +'App folder 권한은 다른 앱 폴더 안을 볼 수 없어서 찾을 수 없습니다.\n\n'
+      +'해결: [연결 해제] → App Key 칸의 값을 Full Dropbox 앱의 키로\n'
+      +'고쳐 넣고 다시 연결하세요.\n'
+      +'⚠️ 연결 해제는 App key를 지우지 않습니다 — 칸의 값을 반드시 새 키로 고쳐야 합니다.';
+  }
+  return 'Full Dropbox 권한으로 연결돼 있는데도 찾지 못했습니다.\n'
+    +'이미 옮기셨다면 이 작업은 필요 없습니다.\n\n'
+    +'훑어본 앱 폴더: '+(_scannedAppDirs.join(', ')||'(없음)')
+    +'\n\nDropbox 최상위: '+(names.join(', ')||'(비어 있음)');
+}
+
 async function findLegacyData(token){
+  _scannedAppDirs=[];
   for(const root of APPS_ROOTS){
     const r=await _dbxRpcS(token,'files/list_folder',{path:root});
     if(!r.ok)continue;
     const subs=((await r.json()).entries||[]).filter(e=>e['.tag']==='folder');
+    _scannedAppDirs.push(...subs.map(x=>root+'/'+x.name));
     for(const sub of subs){
       for(const rel of LEGACY_RELS){
         const path=`${root}/${sub.name}${rel}`;
@@ -1188,10 +1211,10 @@ async function importFromAppFolder(){
   toast('옛 폴더를 찾는 중…');
   let hit=null;
   try{ hit=await findLegacyData(token); }catch(e){ toast('찾기 실패'); return; }
-  if(!hit){ alert('Dropbox의 앱 폴더에서 영양제 데이터를 찾지 못했습니다.\\n\\n'
-         +'· Full Dropbox 권한의 App key로 연결돼 있는지 확인해 주세요.\\n'
-         +'  (App folder 권한이면 다른 앱 폴더 안을 볼 수 없습니다)\\n'
-         +'· 이미 옮기셨다면 이 작업은 필요 없습니다.'); return; }
+  if(!hit){
+    let why=''; try{ why=await _importDiag(token); }catch(e){ why='상태 확인에 실패했습니다.'; }
+    alert('Dropbox의 앱 폴더에서 영양제 데이터를 찾지 못했습니다.\n\n'+why); return;
+  }
   const keys=Object.keys(hit.data).filter(k=>k!=='savedAt');
   if(!confirm(`찾았습니다:\n${hit.path}\n\n항목 ${keys.length}종\n\n`
              +'이 내용을 새 위치로 가져옵니다.\n현재 데이터는 덮어씁니다. 옛 폴더의 원본은 그대로 둡니다.\n\n계속할까요?'))return;
