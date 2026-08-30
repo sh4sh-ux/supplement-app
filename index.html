@@ -1155,6 +1155,59 @@ function dbxDisconnect(){
   renderDbxSection();
 }
 
+/* ── 옛 앱 폴더에서 가져오기 ──────────────────────────────────────
+   App folder 권한이던 시절 데이터는 Dropbox의 `앱/<앱이름>/` 안에 들어 있다.
+   Full Dropbox 권한으로 바꿔 연결하면 앱이 그 폴더 안까지 볼 수 있으므로,
+   파일을 손으로 끌어 옮기지 않아도 앱이 찾아서 가져올 수 있다.
+   · 원본은 지우지 않는다 — 복사만 한다
+   · 앱 폴더 모음 이름은 계정 언어를 따른다 (한국어 계정은 '앱') */
+const APPS_ROOTS=['/앱','/Apps'];
+const LEGACY_RELS=['/07_Apps/영양제(Supplement)/supplement_data.json','/supplement_data.json'];
+async function _dbxRpcS(token,ep,body){
+  return fetch('https://api.dropboxapi.com/2/'+ep,{method:'POST',
+    headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+}
+async function findLegacyData(token){
+  for(const root of APPS_ROOTS){
+    const r=await _dbxRpcS(token,'files/list_folder',{path:root});
+    if(!r.ok)continue;
+    const subs=((await r.json()).entries||[]).filter(e=>e['.tag']==='folder');
+    for(const sub of subs){
+      for(const rel of LEGACY_RELS){
+        const path=`${root}/${sub.name}${rel}`;
+        const data=await _dbxDownload(token,path);
+        if(data&&typeof data==='object')return {path,data};
+      }
+    }
+  }
+  return null;
+}
+async function importFromAppFolder(){
+  const token=dbxGetToken();
+  if(!token){toast('먼저 Dropbox에 연결해 주세요');return;}
+  toast('옛 폴더를 찾는 중…');
+  let hit=null;
+  try{ hit=await findLegacyData(token); }catch(e){ toast('찾기 실패'); return; }
+  if(!hit){ alert('Dropbox의 앱 폴더에서 영양제 데이터를 찾지 못했습니다.\\n\\n'
+         +'· Full Dropbox 권한의 App key로 연결돼 있는지 확인해 주세요.\\n'
+         +'  (App folder 권한이면 다른 앱 폴더 안을 볼 수 없습니다)\\n'
+         +'· 이미 옮기셨다면 이 작업은 필요 없습니다.'); return; }
+  const keys=Object.keys(hit.data).filter(k=>k!=='savedAt');
+  if(!confirm(`찾았습니다:\n${hit.path}\n\n항목 ${keys.length}종\n\n`
+             +'이 내용을 새 위치로 가져옵니다.\n현재 데이터는 덮어씁니다. 옛 폴더의 원본은 그대로 둡니다.\n\n계속할까요?'))return;
+  // dbxSync가 원격을 반영하는 방식과 동일하게 supp: 키만 덮어쓴다 (dbx 설정 키는 보존)
+  Object.entries(hit.data).forEach(([k,v])=>{
+    if(k.startsWith('supp:')&&!k.startsWith('supp:dbx:'))
+      localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));
+  });
+  const data=_gatherData();
+  data['supp:dbx:syncedAt']=new Date().toISOString();
+  await _dbxUpload(token,JSON.stringify(data,null,2));   // 새 위치에 올려 둔다
+  localStorage.setItem(DBX_LASTSYNC,new Date().toISOString());
+  toast('가져왔습니다 ☁');
+  location.reload();
+}
+
 function renderDbxSection(statusMsg=null){
   const el=document.getElementById('dbxSection');if(!el)return;
   const token=dbxGetToken();
@@ -1186,6 +1239,10 @@ function renderDbxSection(statusMsg=null){
     const ac=JSON.parse(localStorage.getItem(DBX_ACCOUNT)||'{}');
     if(ac.name)acHtml=`<div class="dbx-account-name">${ac.name}</div><div class="dbx-account-email">${ac.email}</div>`;
   }catch(e){}
+  const importBtnHtml=`<button class="dbx-connect-btn" id="dbxImportBtn" style="margin-top:8px">옛 앱 폴더에서 가져오기</button>
+    <div class="dbx-appkey-hint" style="margin-top:8px">App key를 Full Dropbox 권한으로 바꾸셨다면 예전 데이터는
+      Dropbox의 <b>앱/&lt;앱이름&gt;/</b> 안에 남아 있습니다. 위 버튼을 누르면 앱이 찾아서 가져옵니다.
+      옛 폴더의 원본은 지우지 않습니다.</div>`;
   const last=localStorage.getItem(DBX_LASTSYNC);
   const lastTxt=last?`마지막 동기화: ${new Date(last).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}`:'아직 동기화 안 됨';
   el.innerHTML=`<div class="dbx-connected-box">
@@ -1195,9 +1252,11 @@ function renderDbxSection(statusMsg=null){
       <button class="dbx-sync-btn" id="dbxSyncBtn">지금 동기화</button>
       <button class="dbx-disc-btn" id="dbxDiscBtn">연결 해제</button>
     </div>
+    ${importBtnHtml}
   </div>`;
   document.getElementById('dbxSyncBtn').addEventListener('click',()=>dbxSync());
   document.getElementById('dbxDiscBtn').addEventListener('click',dbxDisconnect);
+  document.getElementById('dbxImportBtn').addEventListener('click',importFromAppFolder);
 }
 
 // ===== 영양제 관리 시트 =====
