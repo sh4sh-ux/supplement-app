@@ -212,6 +212,8 @@ h1{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:3px;margin-bot
 .backup-btn:last-child{margin-bottom:0}
 .backup-btn:active{opacity:.6}
 
+.dbx-appkey-inp{width:100%;box-sizing:border-box;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line,#e5e5ea);border-radius:10px;font:inherit;font-size:14px;background:var(--card,#fff);color:inherit}
+.dbx-appkey-hint{font-size:12px;line-height:1.7;opacity:.75;margin-bottom:12px}
 /* ── Dropbox ── */
 .dbx-connect-btn{display:flex;align-items:center;gap:8px;width:100%;padding:13px;border:none;background:#0061fe;color:#fff;font-size:15px;font-weight:600;cursor:pointer;border-radius:12px;font-family:inherit;margin-bottom:8px;transition:opacity .15s}
 .dbx-connect-btn:active{opacity:.8}
@@ -955,9 +957,25 @@ document.getElementById('importFile').addEventListener('change',e=>{
 });
 
 // ===== DROPBOX =====
-const DBX_APP_KEY='gebydukc7b7zn5x';
+/* App key — 기본값은 기존 App folder 앱. Full Dropbox 권한의 앱을 새로 만들면
+   설정에서 그 키를 넣을 수 있고, localStorage 값이 우선한다. */
+const DBX_APP_KEY_DEFAULT='gebydukc7b7zn5x';
+const DBX_APPKEY_LS='supp:dbx:appkey';
+const dbxAppKey=()=>localStorage.getItem(DBX_APPKEY_LS)||DBX_APP_KEY_DEFAULT;
 const DBX_REDIRECT='https://sh4sh-ux.github.io/supplement-app/history.html';
-const DBX_FILE='/supplement_data.json';
+
+/* ── Dropbox 저장 위치 ────────────────────────────────────────────────
+   모든 앱 데이터를 Dropbox `/07_Apps/` 아래로 모았다.
+     · 새 위치: /07_Apps/영양제(Supplement)/supplement_data.json
+     · 옛 위치: /supplement_data.json
+   ⚠️ 이 앱은 원래 **App folder** 권한이라 경로가 `/Apps/<앱>/`로 매핑됐다.
+   Dropbox는 앱 생성 후 접근 유형을 못 바꾸므로, 진짜 `/07_Apps/`에 저장하려면
+   Full Dropbox 권한의 앱을 새로 만들어 App key를 바꿔 넣어야 한다.
+   그 전까지는 아래 읽기 폴백으로 옛 위치의 데이터가 그대로 보인다.
+   한글 폴더명이라 Dropbox-API-Arg 헤더는 반드시 dbxArg()로 ASCII 이스케이프한다. */
+const DBX_FILE='/07_Apps/영양제(Supplement)/supplement_data.json';
+const DBX_FILE_LEGACY='/supplement_data.json';
+const dbxArg=o=>JSON.stringify(o).replace(/[\u007f-\uffff]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));
 const DBX_TOKEN='supp:dbx:token';
 const DBX_REFRESH='supp:dbx:refresh';
 const DBX_ACCOUNT='supp:dbx:account';
@@ -982,7 +1000,7 @@ async function dbxConnect(){
   const challenge=await _sha256b64url(verifier);
   localStorage.setItem(DBX_VERIFIER,verifier);
   const params=new URLSearchParams({
-    client_id:DBX_APP_KEY,redirect_uri:DBX_REDIRECT,
+    client_id:dbxAppKey(),redirect_uri:DBX_REDIRECT,
     response_type:'code',code_challenge:challenge,
     code_challenge_method:'S256',token_access_type:'offline'
   });
@@ -1002,7 +1020,7 @@ async function dbxHandleCallback(){
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:new URLSearchParams({
-        code,grant_type:'authorization_code',client_id:DBX_APP_KEY,
+        code,grant_type:'authorization_code',client_id:dbxAppKey(),
         redirect_uri:DBX_REDIRECT,code_verifier:verifier
       })
     });
@@ -1029,7 +1047,7 @@ async function _dbxRefresh(){
   try{
     const res=await fetch('https://api.dropboxapi.com/oauth2/token',{
       method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams({grant_type:'refresh_token',refresh_token:refresh,client_id:DBX_APP_KEY})
+      body:new URLSearchParams({grant_type:'refresh_token',refresh_token:refresh,client_id:dbxAppKey()})
     });
     const data=await res.json();
     if(data.access_token){localStorage.setItem(DBX_TOKEN,data.access_token);return data.access_token;}
@@ -1043,7 +1061,7 @@ async function _dbxUpload(token,body){
     headers:{
       'Authorization':`Bearer ${token}`,
       'Content-Type':'application/octet-stream',
-      'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE,mode:'overwrite',autorename:false,mute:true})
+      'Dropbox-API-Arg':dbxArg({path:DBX_FILE,mode:'overwrite',autorename:false,mute:true})
     },body
   });
   if(res.status===401){
@@ -1054,7 +1072,7 @@ async function _dbxUpload(token,body){
       headers:{
         'Authorization':`Bearer ${newToken}`,
         'Content-Type':'application/octet-stream',
-        'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE,mode:'overwrite',autorename:false,mute:true})
+        'Dropbox-API-Arg':dbxArg({path:DBX_FILE,mode:'overwrite',autorename:false,mute:true})
       },body
     });
     return res2.ok;
@@ -1062,10 +1080,10 @@ async function _dbxUpload(token,body){
   return res.ok;
 }
 
-async function _dbxDownload(token){
+async function _dbxDownload(token,path=DBX_FILE){
   const res=await fetch('https://content.dropboxapi.com/2/files/download',{
     method:'POST',
-    headers:{'Authorization':`Bearer ${token}`,'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE})}
+    headers:{'Authorization':`Bearer ${token}`,'Dropbox-API-Arg':dbxArg({path})}
   });
   if(res.status===409)return null; // 파일 없음
   if(res.status===401){
@@ -1073,11 +1091,18 @@ async function _dbxDownload(token){
     if(!newToken)return null;
     const res2=await fetch('https://content.dropboxapi.com/2/files/download',{
       method:'POST',
-      headers:{'Authorization':`Bearer ${newToken}`,'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE})}
+      headers:{'Authorization':`Bearer ${newToken}`,'Dropbox-API-Arg':dbxArg({path})}
     });
     return res2.ok?JSON.parse(await res2.text()):null;
   }
   return res.ok?JSON.parse(await res.text()):null;
+}
+
+// 새 위치에 없으면 옛 위치에서 읽는다. 폴더를 아직 안 옮겼거나 옛 App key로
+// 접속한 경우에도 데이터가 그대로 보이게 하는 폴백 — 쓰기는 항상 새 위치로 간다.
+async function _dbxDownloadAny(token){
+  const r=await _dbxDownload(token,DBX_FILE);
+  return r!==null?r:await _dbxDownload(token,DBX_FILE_LEGACY);
 }
 
 function _gatherData(){
@@ -1098,7 +1123,7 @@ async function dbxSync(uploadOnly=false){
   renderDbxSection('동기화 중…');
   try{
     if(!uploadOnly){
-      const remote=await _dbxDownload(token);
+      const remote=await _dbxDownloadAny(token);
       if(remote&&typeof remote==='object'){
         const remoteAt=remote['supp:dbx:syncedAt']||'';
         const localAt=localStorage.getItem(DBX_LASTSYNC)||'';
@@ -1134,11 +1159,21 @@ function renderDbxSection(statusMsg=null){
   const el=document.getElementById('dbxSection');if(!el)return;
   const token=dbxGetToken();
   if(!token){
-    el.innerHTML=`<button class="dbx-connect-btn" id="dbxConnectBtn">
+    el.innerHTML=`<input class="dbx-appkey-inp" id="dbxAppKeyInp" type="text" inputmode="latin"
+        autocomplete="off" autocapitalize="off" spellcheck="false"
+        placeholder="Dropbox App key (비워두면 기존 앱)" value="${localStorage.getItem(DBX_APPKEY_LS)||''}">
+      <div class="dbx-appkey-hint">데이터를 <b>/07_Apps/영양제(Supplement)/</b>에 저장하려면
+        Dropbox 개발자 콘솔에서 <b>Full Dropbox</b> 권한의 앱을 새로 만들고 그 App key를 넣어 주세요.
+        기존 키로도 계속 쓸 수 있지만 저장 위치는 <b>/Apps/</b> 안에 남습니다.</div>
+      <button class="dbx-connect-btn" id="dbxConnectBtn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2l6 3.75L6 9.5 0 5.75zm12 0l6 3.75-6 3.75-6-3.75zm-12 9l6 3.75L0 18.5l-6-3.75zm12 0l6 3.75-6 3.75-6-3.75zM6 20.25L12 24l6-3.75-6-3.75z"/></svg>
       Dropbox 연결하기
     </button>`;
-    document.getElementById('dbxConnectBtn').addEventListener('click',dbxConnect);
+    document.getElementById('dbxConnectBtn').addEventListener('click',()=>{
+      const typed=(document.getElementById('dbxAppKeyInp')?.value||'').trim();
+      if(typed)localStorage.setItem(DBX_APPKEY_LS,typed);
+      dbxConnect();
+    });
     return;
   }
   let acHtml='';
