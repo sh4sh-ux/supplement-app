@@ -1037,6 +1037,10 @@ async function dbxHandleCallback(){
     }catch(e2){}
     toast('Dropbox 연결됐어요! ☁');
     renderDbxSection();
+    if(localStorage.getItem('supp_dbx_pendingimport')==='1'){   // 키 갈아끼우고 돌아옴 — 이어서 가져온다
+      localStorage.removeItem('supp_dbx_pendingimport');
+      setTimeout(()=>importFromAppFolder().catch(()=>{}),400);
+    }
     await dbxSync();
   }catch(err){toast('연결 실패: '+err.message);}
 }
@@ -1162,6 +1166,27 @@ function dbxDisconnect(){
    · 원본은 지우지 않는다 — 복사만 한다
    · 앱 폴더 모음 이름은 계정 언어를 따른다 (한국어 계정은 '앱') */
 const APPS_ROOTS=['/앱','/Apps'];
+/* ── 다른 앱의 App key 빌려오기 ──────────────────────────────────
+   일곱 앱이 모두 같은 주소(sh4sh-ux.github.io)에서 돌아가므로 localStorage를 공유한다.
+   한 앱에 Full Dropbox 키를 넣어 두면 다른 앱이 그 값을 읽을 수 있다.
+   App folder 권한에 막혔을 때 사용자가 키를 직접 찾아 붙여넣지 않아도 되게,
+   형제 앱에 있는 다른 키를 찾아 한 번의 확인으로 갈아 끼운다. */
+const SIBLING_APPKEYS=[
+  ['dutchpay_dbx_appkey','더치페이'],
+  ['dbx_app_key','영수증 DB·ERP'],
+  ['tripprep_dbx_appkey','여행준비'],
+  ['qs_dbx_appkey','금연'],
+  ['supp:dbx:appkey','영양제'],
+  ['easy-loan-note:dbx:appkey','쉬운 차용증'],
+];
+function findSiblingAppKey(current){
+  for(const [k,label] of SIBLING_APPKEYS){
+    let v=null; try{ v=localStorage.getItem(k); }catch(e){}
+    if(v&&v.trim()&&v.trim()!==(current||'').trim())return {key:v.trim(),label};
+  }
+  return null;
+}
+
 let _scannedAppDirs=[];
 const LEGACY_RELS=['/07_Apps/영양제(Supplement)/supplement_data.json','/supplement_data.json'];
 async function _dbxRpcS(token,ep,body){
@@ -1213,6 +1238,21 @@ async function importFromAppFolder(){
   try{ hit=await findLegacyData(token); }catch(e){ toast('찾기 실패'); return; }
   if(!hit){
     let why=''; try{ why=await _importDiag(token); }catch(e){ why='상태 확인에 실패했습니다.'; }
+    // 키가 문제라면 다른 앱에 있는 키로 갈아 끼워 준다 — 직접 찾아 붙여넣지 않게
+    if(why.includes('App key가 아직 옛 것')){
+      const sib=findSiblingAppKey(dbxAppKey());
+      if(sib){
+        if(confirm('Dropbox의 앱 폴더에서 영양제 데이터을 찾지 못했습니다.\n\n'
+          +'App key가 아직 옛 것(App folder 권한)입니다.\n\n'
+          +`같은 브라우저의 '${sib.label}'에 다른 App key가 있습니다.\n`
+          +'그 키로 바꿔서 다시 연결할까요?\n\n'
+          +'(연결이 끝나면 가져오기를 이어서 합니다)')){
+          localStorage.setItem('supp_dbx_pendingimport','1');
+          await (localStorage.setItem(DBX_APPKEY_LS,sib.key),[DBX_TOKEN,DBX_REFRESH].forEach(k=>localStorage.removeItem(k)),dbxConnect());
+        }
+        return;
+      }
+    }
     alert('Dropbox의 앱 폴더에서 영양제 데이터를 찾지 못했습니다.\n\n'+why); return;
   }
   const keys=Object.keys(hit.data).filter(k=>k!=='savedAt');
